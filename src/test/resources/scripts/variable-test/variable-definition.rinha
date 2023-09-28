@@ -1,0 +1,8 @@
+let message = "Hello!";
+let firstNumber = 1;
+let secondNumber = if(firstNumber > 1) {
+    firstNumber + secondNumber
+} else {
+    100
+};
+print(message + " " + (firstNumber + secondNumber))

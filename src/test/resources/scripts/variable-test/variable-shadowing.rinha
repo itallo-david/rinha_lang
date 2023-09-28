@@ -1,0 +1,7 @@
+let year = 2022;
+let getNewYear = fn() => {
+    let year  = year + 1;
+    year
+};
+let ageMessage = fn(year) => "Hi " + year;
+print(print(year) + ageMessage(getNewYear()))

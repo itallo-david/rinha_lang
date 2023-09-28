@@ -1,0 +1,2 @@
+let message = fn(name) => "Hello " + name;
+message("Itallo")

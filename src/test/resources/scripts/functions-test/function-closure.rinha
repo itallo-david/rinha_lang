@@ -1,0 +1,9 @@
+let increment = fn(n) => {
+    let add = fn(x) => { n + x };
+    add
+};
+
+let one = increment(1);
+let two = increment(10);
+
+print(one(5) + two(10))
