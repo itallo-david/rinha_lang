@@ -22,7 +22,7 @@ public abstract class Literal<T> extends Term {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (!(o instanceof Literal<?>)) return false;
         Literal<?> literal = (Literal<?>) o;
         return Objects.equals(value, literal.value);
     }

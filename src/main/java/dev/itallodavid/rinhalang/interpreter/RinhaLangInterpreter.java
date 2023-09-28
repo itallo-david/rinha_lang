@@ -245,7 +245,7 @@ public class RinhaLangInterpreter implements Interpreter {
                         if(literal instanceof LiteralBoolean literalBoolean) result = literalBoolean.value();
                         else if(literal instanceof LiteralString literalString) result = !literalString.value().isEmpty();
                         else if(literal instanceof LiteralInteger literalInteger) result = literalInteger.value().compareTo(new BigInteger("0")) > 0;
-                    }
+                    } else result = false;
 
                     yield new LiteralBoolean(null, result);
                 }
@@ -310,8 +310,10 @@ public class RinhaLangInterpreter implements Interpreter {
             Term then = expIf.then();
             Term otherwise = expIf.otherwise();
 
-            if (condition instanceof LiteralBoolean literalBoolean && literalBoolean.value()) return withoutEval ? then : eval(then, env);
-            else return withoutEval ? otherwise : eval(otherwise, env);
+            if (condition instanceof LiteralBoolean literalBoolean && literalBoolean.value())
+                return withoutEval ? then : eval(then, env);
+            else
+                return withoutEval ? otherwise : eval(otherwise, env);
         }
 
         return eval(term, env);
