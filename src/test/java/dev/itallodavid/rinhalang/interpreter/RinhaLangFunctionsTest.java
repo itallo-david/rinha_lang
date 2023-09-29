@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.math.BigInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -70,5 +71,17 @@ public class RinhaLangFunctionsTest {
         assertTrue(term instanceof LiteralString);
         assertEquals("Hello world", ((LiteralString) term).value());
         assertEquals("<#closure>\n", outputStreamCaptor.toString());
+    }
+
+    @Test
+    void test5() {
+        String ast = RinhaAst.from("scripts/functions-test/function-complex.rinha");
+        File file = MapJson2File.map(ast);
+        RinhaLangInterpreter interpreter = new RinhaLangInterpreter(file);
+        Term term = interpreter.perform();
+
+        assertTrue(term instanceof LiteralInteger);
+        assertEquals(new BigInteger("55"), ((LiteralInteger) term).value());
+        assertEquals("55\n", outputStreamCaptor.toString());
     }
 }
