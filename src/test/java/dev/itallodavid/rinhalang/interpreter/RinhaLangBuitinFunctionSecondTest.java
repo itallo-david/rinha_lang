@@ -5,8 +5,6 @@ import dev.itallodavid.rinhalang.interpreter.helpers.RinhaAst;
 import dev.itallodavid.rinhalang.language.kernel.File;
 import dev.itallodavid.rinhalang.language.kernel.Literal;
 import dev.itallodavid.rinhalang.language.kernel.Term;
-import dev.itallodavid.rinhalang.language.literals.LiteralBoolean;
-import dev.itallodavid.rinhalang.language.literals.LiteralInteger;
 import dev.itallodavid.rinhalang.language.literals.LiteralString;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,7 +12,6 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
-import java.math.BigInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 public class RinhaLangBuitinFunctionSecondTest {

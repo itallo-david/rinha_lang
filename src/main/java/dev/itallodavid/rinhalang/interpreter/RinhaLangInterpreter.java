@@ -9,10 +9,8 @@ import dev.itallodavid.rinhalang.language.literals.LiteralBoolean;
 import dev.itallodavid.rinhalang.language.literals.LiteralInteger;
 import dev.itallodavid.rinhalang.language.literals.LiteralString;
 
-import java.awt.*;
 import java.math.BigInteger;
 import java.util.*;
-import java.util.List;
 
 public class RinhaLangInterpreter implements Interpreter {
     private final File node;

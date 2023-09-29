@@ -5,7 +5,6 @@ import dev.itallodavid.rinhalang.interpreter.helpers.RinhaAst;
 import dev.itallodavid.rinhalang.language.kernel.File;
 import dev.itallodavid.rinhalang.language.kernel.Literal;
 import dev.itallodavid.rinhalang.language.kernel.Term;
-import dev.itallodavid.rinhalang.language.literals.LiteralBoolean;
 import dev.itallodavid.rinhalang.language.literals.LiteralInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
