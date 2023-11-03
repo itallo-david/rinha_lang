@@ -1,0 +1,10 @@
+let fibrec = fn (wn, wk1, wk2) => {
+    wn() + 100
+};
+
+let fib = fn (wn) => {
+    let n = wn();
+    fibrec(fn () => n, fn () => 0, fn () => 1)
+};
+
+print(fib(fn () => 45))

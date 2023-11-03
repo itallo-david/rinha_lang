@@ -16,7 +16,8 @@ public class RinhaLangInterpreter implements Interpreter {
     private final File node;
     private final Environment environment;
     private final Map<Term, Map<Integer, Term>> functionCallCache = new WeakHashMap<>();
-    private final Map<String, Environment> scope = new HashMap<>();
+    private final Map<Term, UUID> scopes = new HashMap<>();
+    private final Map<UUID, Environment> scopeEnvironment = new HashMap<>();
 
     public RinhaLangInterpreter(File node) {
         this(node, new DefaultEnvironment());
@@ -37,29 +38,110 @@ public class RinhaLangInterpreter implements Interpreter {
     }
 
     private Process eval(Term term, Environment env, boolean withoutEval) {
-        if (term instanceof Literal<?>) return new Process(term, env);
+        if (term instanceof Literal<?> || term instanceof ExpDefFunction) return new Process(term, env);
         else if (term instanceof ExpTuple expTuple) {
-            Term first = expTuple.first();
-            Term second = expTuple.second();
-
-            if (first instanceof ExpBuiltinFunction) first = eval(first, env).term();
-            if (second instanceof ExpBuiltinFunction) second = eval(second, env).term();
-
+            Term first = eval(expTuple.first(), env).term();
+            Term second = eval(expTuple.second(), env).term();
             return new Process(new ExpTuple(expTuple.location(), first, second), env);
         }
         else if (term instanceof ExpBuiltinFunction builtinFunction) {
             Process process = eval(builtinFunction.value(), env);
+            return new Process(builtinFunction.perform(process.term()), process.environment());
+        }
+        else if (term instanceof ExpVar expVar) {
+            String varName = expVar.text();
+            Term varValue = env.get(varName);
+
+            if(varValue instanceof ExpDefFunction) {
+                UUID scope = scopes.get(varValue);
+                Environment environment = scopeEnvironment.get(scope);
+                return new Process(varValue, environment);
+            }
+
+            return new Process(varValue, env);
+        }
+        else if (term instanceof ExpLet expLet) {
+            Parameter name = expLet.name();
+            Process process = eval(expLet.value(), env);
             Term value = process.term();
-            return new Process(builtinFunction.perform(value), process.environment());
+
+            if(value instanceof ExpDefFunction) {
+                Environment finalEnv = new DefaultEnvironment(env.parent());
+                UUID scope = randomUUID();
+                finalEnv.put(env.environment());
+                scopes.put(value, scope);
+                scopeEnvironment.put(scope, finalEnv);
+            }
+
+            env = process.environment();
+            env.put(name.text(), value);
+
+            return withoutEval ? new Process(expLet.next(), env) : eval(expLet.next(), env);
+        }
+        else if (term instanceof ExpIf expIf) {
+            Process process  = eval(expIf.condition(), env);
+            env = process.environment();
+            Term condition = process.term();
+            Term then = expIf.then();
+            Term otherwise = expIf.otherwise();
+
+            if (condition instanceof LiteralBoolean literalBoolean && literalBoolean.value())
+                return withoutEval ? new Process(then, env) : eval(then, env);
+            else
+                return withoutEval ? new Process(otherwise, env) : eval(otherwise, env);
+        }
+        else if (term instanceof ExpCall expCall) {
+            Environment newScope = new DefaultEnvironment(env);
+            Process firstProcess = eval(expCall.callee(), env);
+            Term callee = firstProcess.term();
+
+            if(callee instanceof ExpDefFunction function) {
+                List<Term> arguments = expCall.arguments();
+                List<Parameter> parameters = function.parameters();
+
+                if(parameters.size() != arguments.size()) {
+                    boolean calleeIsVar = expCall.callee() instanceof ExpVar;
+
+                    throw new InvalidNumberOfFunctionParameters(
+                            (calleeIsVar ? ((ExpVar) expCall.callee()).text(): expCall.callee().toString()),
+                            parameters.size(),
+                            arguments.size());
+                }
+
+                Process argumentProcess = null;
+
+                for(int index = 0; index < parameters.size(); index++) {
+                    String argumentName = parameters.get(index).text();
+                    Term argumentValue = arguments.get(index);
+
+                    while(!(argumentValue instanceof Literal<?> || argumentValue instanceof ExpTuple || argumentValue instanceof ExpDefFunction)) {
+                        argumentProcess = eval(argumentValue, newScope);
+                        argumentValue = argumentProcess.term();
+                        newScope = argumentProcess.environment();
+                    }
+
+                    newScope.put(argumentName, argumentValue);
+                }
+
+                return eval(function.value(), newScope);
+            }
+
+            return eval(callee, newScope);
         }
         else if (term instanceof ExpBinary expBinary) {
             Term lhs = expBinary.lhs();
             Term rhs = expBinary.rhs();
 
-            while ((lhs instanceof ExpCall || lhs instanceof ExpVar || lhs instanceof ExpBinary || lhs instanceof ExpBuiltinFunction))
-                lhs = eval(lhs, env, true).term();
-            while ((rhs instanceof ExpCall || rhs instanceof ExpVar || rhs instanceof ExpBinary || rhs instanceof ExpBuiltinFunction))
-                rhs = eval(rhs, env, true).term();
+            while ((lhs instanceof ExpCall || lhs instanceof ExpVar || lhs instanceof ExpBinary || lhs instanceof ExpBuiltinFunction)) {
+                Process process = eval(lhs, env, true);
+                lhs = process.term();
+                env = process.environment();
+            }
+            while ((rhs instanceof ExpCall || rhs instanceof ExpVar || rhs instanceof ExpBinary || rhs instanceof ExpBuiltinFunction)) {
+                Process process = eval(rhs, env, true);
+                rhs = process.term();
+                env = process.environment();
+            }
 
             BinaryOperator operator = expBinary.op();
             RuntimeException exception = new InvalidBinaryOperation(operator, lhs.kind(), rhs.kind());
@@ -262,111 +344,12 @@ public class RinhaLangInterpreter implements Interpreter {
                 }
             };
         }
-        else if (term instanceof ExpLet expLet) {
-            Parameter name = expLet.name();
-            Term value = expLet.value();
-
-            if (value instanceof ExpCall expCall) {
-                Environment scope = new DefaultEnvironment(env);
-                Process process = eval(expCall.callee(), env);
-                Term callee = process.term();
-
-                if(callee instanceof ExpDefFunction function) {
-                    List<Parameter> parameters = function.parameters();
-                    List<Term> arguments = expCall.arguments();
-
-                    if (parameters.size() != arguments.size())
-                        throw new InvalidNumberOfFunctionParameters(
-                                ((ExpVar) expCall.callee()).text(), parameters.size(), arguments.size());
-                    for (int index = 0; index < parameters.size(); index++) {
-                        String key = parameters.get(index).text();
-                        Term arg = arguments.get(index);
-
-                        while (!(arg instanceof Literal<?> || arg instanceof ExpTuple)) {
-                            arg = eval(arg, scope, true).term();
-                        }
-
-                        scope.put(key, arg);
-                    }
-
-                    Process process1 = eval(function.value(), scope);
-                    scope.put(process1.environment().environment());
-                    this.scope.put(name.text(), scope);
-                }
-            }
-
-            if (!(value instanceof ExpDefFunction)) value = eval(value, env).term();
-
-            env.put(name.text(), value);
-            return withoutEval ? new Process(expLet.next(), env) : eval(expLet.next(), env);
-        }
-        else if (term instanceof ExpVar expVar)  return new Process(env.get(expVar.text()), env);
-        else if (term instanceof ExpDefFunction expDefFunction) return new Process(expDefFunction.value(), env);
-        else if (term instanceof ExpCall expCall) {
-            if(expCall.callee() instanceof ExpVar expVar && this.scope.containsKey(expVar.text())) {
-                env = new DefaultEnvironment(env);
-                env.put(scope.get(expVar.text()).environment());
-            }
-
-            Term callee = eval(expCall.callee(), env).term();
-
-            if(callee instanceof ExpDefFunction function) {
-                List<Term> arguments = expCall.arguments();
-                Environment newScope = new DefaultEnvironment(env);
-
-                List<Parameter> parameters = function.parameters();
-
-                if (parameters.size() != arguments.size()) throw new InvalidNumberOfFunctionParameters(
-                        ((ExpVar) expCall.callee()).text(),
-                        parameters.size(),
-                        arguments.size());
-                for (int index = 0; index < parameters.size(); index++) {
-                    String key = parameters.get(index).text();
-                    Term value = arguments.get(index);
-
-                    while (!(value instanceof Literal<?> || value instanceof ExpTuple)) {
-                        value = eval(value, newScope, true).term();
-                    }
-
-                    newScope.put(key, value);
-                }
-
-                if (!functionCallCache.containsKey(callee)) functionCallCache.put(callee, new HashMap<>());
-
-                if (functionCallCache.get(callee).containsKey(newScope.hashCode()))
-                    term = functionCallCache.get(callee).get(newScope.hashCode());
-                else {
-                    term = eval(callee, newScope).term();
-
-                    while (!(term instanceof Literal<?> || term instanceof ExpTuple || term instanceof ExpDefFunction)) {
-                        Process process = eval(term, newScope, true);
-                        term = process.term();
-                        newScope.put(process.environment().environment());
-                    }
-
-                    functionCallCache.get(callee).put(newScope.hashCode(), term);
-                    env = newScope;
-                }
-            }
-            else
-                term = eval(callee, env).term();
-
-            return (
-                    term instanceof ExpDefFunction || term instanceof Literal<?> || term instanceof ExpTuple
-            ) ? new Process(term, env) : eval(term, env);
-        }
-        else if (term instanceof ExpIf expIf) {
-            Term condition = eval(expIf.condition(), env).term();
-            Term then = expIf.then();
-            Term otherwise = expIf.otherwise();
-
-            if (condition instanceof LiteralBoolean literalBoolean && literalBoolean.value())
-                return withoutEval ? new Process(then, env) : eval(then, env);
-            else
-                return withoutEval ? new Process(otherwise, env) : eval(otherwise, env);
-        }
 
         return eval(term, env);
+    }
+
+    private UUID randomUUID() {
+        return UUID.randomUUID();
     }
 
     @Override
